@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="mapper"> 
+
+
+<resultMap type="com.payment.www.vo.BoardVO" id="rsMap">
+<result column="NO" property="no"/>
+<result column="NAME" property="name"/>
+<result column="TITLE" property="title"/>
+<result column="CONTENT" property="content"/>
+<result column="REG_DATE" property="reg_date"/>
+<result column="SIGN_DATE" property="sign_date"/>
+<result column="APPROVER" property="approver"/>
+<result column="SIGN_STATUS" property="sign_status"/> 
+<result column="EMPLOYEE" property="employee"/>
+<result column="EMPLOYER" property="employer"/>
+<result column="AUTHORITY" property="authority"/>
+</resultMap>  
+
+
+
+
+
+
+
+ <sql id ="memberSql">
+ <choose>
+   <when test='RANK == "A"'>
+    and (LM.NAME like '%'||'사원'||'%' OR LM.NAME like '%'||'대리'||'%'OR LM.NAME like '%'||'과장'||'%')
+   </when>
+     <when test='RANK == "B"'>
+    and (LM.NAME like '%'||'사원'||'%' OR LM.NAME like '%'||'대리'||'%')
+   </when>
+ </choose>
+ </sql>
+
+
+ <sql id ="searchSql">
+   <choose>
+     <when test ="type == 'name'"> 
+       and LM.NAME like '%'||#{content}||'%'
+     </when>
+     <when test = "search_write == 'appro'">
+        and FLAG like '%'||#{search_state}||'%'
+     </when>  
+      <when test = "type == 'title'">
+        and (TITLE like '%'||#{content}||'%' OR  CONTENT like '%'||#{content}||'%')
+     </when>    
+     
+     <!--  
+        <when test = "search_state != null and search_state != ''">
+        and SIGN_STATUS like '%'||#{search_state}||'%'
+     </when> 
+
+  -->
+
+
+ </choose> 
+ 
+
+<if test="date != null and date != ''"> 
+ and to_char(REG_DATE, 'yyyy-mm-dd') between #{date} and #{date2}
+</if>
+
+
+</sql> 
+
+
+
+<!-- 로그인 -->
+<select id="loginCheck" parameterType="map"  resultType="map">
+select
+ NAME
+ ,ID
+ ,PW
+ ,RANK
+from lee_member
+where Id = #{id}
+</select> 
+
+
+<!--글쓰기 자동 seq 생성 -->
+<!-- SESSION 에서받은 값 보내기 -->
+<select id="maxNum" resultType="Integer">
+ SELECT NVL(MAX(NO)+1,1) FROM LEE_BOARD
+</select>
+
+<!-- 값 추가하기  --> 
+
+<insert id="insert" parameterType="map">
+insert into lee_board (
+NO
+,ID 
+,TITLE
+,CONTENT
+,REG_DATE
+,FLAG
+,RANK
+)values(
+#{no},
+(select ID 
+   from lee_member
+where NAME = #{id})
+,#{title}
+,#{content}
+,sysdate
+,#{status}
+,#{rank}
+
+)
+</insert> 
+
+
+<!-- list값추가   -->
+<select id="list"  parameterType="map"  resultMap="rsMap" resultType="map">
+SELECT 
+  row_number() over(order by LB.NO asc) rnum
+  ,LB.NO
+  ,LB.ID
+  ,LB.TITLE
+  ,LM.NAME
+  ,LB.CONTENT
+  ,LB.REG_DATE
+  ,LB.SIGN_DATE
+  ,LB.APPROVER
+  ,F.SIGN_STATUS
+ FROM LEE_MEMBER LM JOIN LEE_BOARD LB  ON LM.ID = LB.ID
+    join FLAG  F on LB.flag = F.flag
+     where 1=1
+  <include refid="searchSql"></include>  
+</select> 
+
+<!--글 상세보기  -->
+<select id="detail" parameterType="map"  resultType="map" >
+ SELECT 
+  LB.NO
+  ,LB.ID
+  ,LB.TITLE
+  ,LM.NAME
+  ,LB.CONTENT
+  ,LB.REG_DATE
+  ,LB.SIGN_DATE
+  ,LB.APPROVER
+  ,F.SIGN_STATUS
+
+ FROM ( LEE_MEMBER LM JOIN LEE_BOARD LB  ON LM.ID = LB.ID
+	          join FLAG  F on LB.flag = F.flag   
+	        )  
+ WHERE NO = #{seq}
+</select> 
+
+
+<!-- 히스토리  -->
+<select id="getHistory" parameterType="String" resultType="map">
+
+		SELECT ROWNUM, A.* FROM (SELECT * FROM lee_board lb
+		JOIN lee_member lm ON lb.ID=lm.ID 
+		WHERE lb.ID =#{id} 
+		ORDER BY NO ) A
+
+</select>  
+
+
+<!-- 결제내역  --> 
+<update id="statusInsert" parameterType="map">
+ UPDATE LEE_BOARD SET 
+ TITLE = #{title}
+ ,CONTENT= #{content}
+ ,SIGN_DATE = TO_CHAR(SYSDATE,'YYYY-MM-DD')
+ ,APPROVER =#{approver} 
+ ,flag = #{flag}
+ WHERE NO = #{no}
+ 
+</update>  
+
+<select id="stateCheck" parameterType="map" resultType="map">
+
+<!--   select 
+  LB.NO
+  ,LB.ID
+  ,LB.TITLE
+  ,LB.CONTENT
+  ,TO_CHAR(LB.REG_DATE,'YYYY-MM-DD') AS RD
+  ,TO_CHAR(LB.SIGN_DATE, 'YYYY-MM-DD') AS SD
+  ,LB.APPROVER
+  ,LB.SIGN_STATUS
+  ,LB.FLAG
+  ,LM.NAME 
+  from ( LEE_MEMBER LM JOIN LEE_BOARD LB  ON LM.ID = LB.ID
+          join FLAG F on LB.flag = F.flag); -->
+
+ select 
+  LB.NO
+  ,LB.ID
+  ,LB.TITLE
+  ,LB.CONTENT
+  ,TO_CHAR(LB.REG_DATE,'YYYY-MM-DD') AS RD
+  ,TO_CHAR(LB.SIGN_DATE, 'YYYY-MM-DD') AS SD
+  ,LB.APPROVER
+  ,F.SIGN_STATUS
+  ,LB.FLAG
+  ,LM.NAME 
+  from ( LEE_MEMBER LM JOIN LEE_BOARD LB  ON LM.ID = LB.ID  join FLAG F on LB.flag = F.flag)
+  where F.SIGN_STATUS= #{search_state} and LB.ID =#{id} 
+
+
+
+</select>
+
+<insert id="proxy"  parameterType="map">
+insert into lee_proxy
+(EMPLOYER
+,AUTHORITY
+,EMPLOYEE 
+)VALUES
+(#{login_name}
+,TO_CHAR(SYSDATE,'YYYY-MM-DD')
+,#{employee})
+</insert>
+
+
+<select id="getmember"  parameterType="map" resultType="map"   resultMap="rsMap" >
+	select 
+	LM.NAME
+	,LM.ID
+	,LM.RANK
+	from lee_member LM
+	where 1=1
+  <include refid="memberSql"></include>  
+   
+</select>
+
+
+<select id="getselectMem" parameterType="map"  resultType="map"  >
+	select 
+	LM.NAME
+	,LM.ID
+	,LM.RANK
+	from lee_member LM
+	where #{selected} = LM.ID
+</select>
+
+
+
+<select id="getproxy" parameterType="String" resultType="map" >
+	select 
+	 EMPLOYER
+	 ,EMPLOYEE
+	 ,AUTHORITY
+	 from lee_proxy 
+	 where AUTHORITY = TO_CHAR(SYSDATE,'YYYY-MM-DD')
+ 
+</select>
+
+</mapper>
